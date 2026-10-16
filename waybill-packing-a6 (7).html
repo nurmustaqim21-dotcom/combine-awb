@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ms"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Waybill + Packing List — A6 Merger</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#152238;background:#f3f6fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1150px;margin:auto;padding:30px 18px}header{margin-bottom:24px}h1{font-size:27px;margin:0 0 6px}p{color:#62718a;margin:0;line-height:1.5}.grid{display:grid;grid-template-columns:minmax(310px,1fr) minmax(320px,1fr);gap:20px}.panel{background:white;border:1px solid #e0e6ef;border-radius:16px;padding:22px;box-shadow:0 5px 22px #18325009}h2{font-size:17px;margin:0 0 16px}.uploads{display:grid;grid-template-columns:1fr 1fr;gap:12px}.upload{display:block;border:2px dashed #b7c7df;border-radius:12px;padding:19px 12px;text-align:center;cursor:pointer;background:#f8faff;min-width:0}.upload:hover{border-color:#2563eb}.upload strong{display:block;margin:8px 0 4px}.upload small{display:block;word-break:break-word;color:#697891;font-size:12px}.upload input{display:none}.controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}.field{display:flex;flex-direction:column;gap:7px}.field label{font-size:13px;font-weight:650}.field input,.field select{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:10px;font:inherit;background:white;color:#152238}.full{grid-column:1/-1}.note{background:#eff6ff;border:1px solid #bfdbfe;color:#26436a;padding:12px;border-radius:10px;font-size:13px;line-height:1.5;margin-top:15px}.actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}button{border:0;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer;background:#2563eb;color:white}button.secondary{background:#e8eef7;color:#1d3554}button:disabled{opacity:.45;cursor:not-allowed}.status{font-size:13px;min-height:24px;margin-top:12px;color:#475569}.status.error{color:#b91c1c}.previewbox{background:#e8edf4;border-radius:12px;min-height:490px;display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto}#preview{max-width:100%;background:white;box-shadow:0 5px 20px #14223a33}.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:13px;font-size:13px}.pager button{padding:8px 12px}.muted{font-size:12px;color:#718096;margin-top:13px}@media(max-width:780px){.grid{grid-template-columns:1fr}.uploads{grid-template-columns:1fr}.wrap{padding:18px 12px}.panel{padding:16px}}@media(max-width:390px){.controls{grid-template-columns:1fr}}
+ .site-footer{text-align:center;margin-top:26px;padding:18px 8px;color:#62718a;font-size:14px;line-height:1.7}.site-footer a{color:#2563eb;font-weight:700;text-decoration:none}.site-footer a:hover{text-decoration:underline}</style></head><body><main class="wrap"><header><h1>Combine AWB + Packing Slip dalam 1 Page <span style="color:#2563eb">A6</span></h1><p>File PDF yang diupload tidak disimpan di dalam server penyedia sistem. Semua pemprosesan PDF dilakukan terus dalam browser pengguna.</p></header><div class="grid"><section class="panel"><h2>1. Muat naik dokumen</h2><div class="uploads" style="grid-template-columns:1fr"><label class="upload">📄<strong>PDF Waybill + Packing Slip</strong><small id="waybillName">Klik untuk pilih satu PDF (halaman 1 waybill, halaman 2 packing slip, dan seterusnya)</small><input id="waybill" type="file" accept="application/pdf,.pdf"></label></div><div class="controls"><div class="field"><label for="orientation">Orientasi A6</label><select id="orientation"><option value="portrait">Potret (105 × 148 mm)</option><option value="landscape">Landskap (148 × 105 mm)</option></select></div></div><div class="note">Auto fit automatik: <b>Potret</b> — waybill di atas, packing slip di bawah. <b>Landskap</b> — waybill di kiri, packing slip di kanan. Ruang putih dipotong dan kandungan dilaraskan supaya muat dalam A6.</div><div class="actions"><button id="generate">Gabung & Preview</button><button class="secondary" id="download" disabled>Download PDF A6</button></div><div id="status" class="status" aria-live="polite"></div></section><section class="panel"><h2>2. Preview label A6</h2><div class="previewbox"><canvas id="preview" width="300" height="423"></canvas></div><div class="pager"><button id="prev" class="secondary" disabled>←</button><span id="pageInfo">Belum ada preview</span><button id="next" class="secondary" disabled>→</button></div><p class="muted">PDF asal tidak diubah. Fail output mempunyai satu halaman A6 bagi setiap dua halaman PDF input.</p></section></div><footer class="site-footer">Bina Kedai Online + Landing Page dalam 1 sistem. <a href="https://oode.my" target="_blank" rel="noopener noreferrer">Cuba percuma OODE.MY sekarang</a></footer></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(()=>{'use strict';const $=id=>document.getElementById(id);let resultBytes=null,previewDoc=null,pageIndex=1,busy=false;const mm=v=>v*72/25.4;const setStatus=(s,err=false)=>{$('status').textContent=s;$('status').className='status'+(err?' error':'')};const toggle=()=>{$('download').disabled=!resultBytes;$('prev').disabled=!previewDoc||pageIndex<=1;$('next').disabled=!previewDoc||pageIndex>=previewDoc.numPages};
+function reset(){resultBytes=null;previewDoc=null;pageIndex=1;toggle();$('pageInfo').textContent='Belum ada preview';const c=$('preview'),ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle='#cbd5e1';ctx.strokeRect(8,8,c.width-16,c.height-16)}reset();
+$('waybill').addEventListener('change',()=>{const f=$('waybill').files[0];$('waybillName').textContent=f?f.name:'Klik untuk pilih satu PDF';reset();setStatus('')});for(const id of ['orientation'])$(id).addEventListener('change',()=>{if(resultBytes){reset();setStatus('Tetapan berubah. Klik Gabung & Preview semula.')}});
+async function showPage(){if(!previewDoc)return;const page=await previewDoc.getPage(pageIndex);const v=page.getViewport({scale:1});const scale=Math.min(480/v.width,640/v.height)*Math.min(window.devicePixelRatio||1,2);const vp=page.getViewport({scale});const c=$('preview');c.width=Math.round(vp.width);c.height=Math.round(vp.height);c.style.width=Math.round(vp.width/Math.min(window.devicePixelRatio||1,2))+'px';const ctx=c.getContext('2d');await page.render({canvasContext:ctx,viewport:vp}).promise;$('pageInfo').textContent=`Halaman ${pageIndex} / ${previewDoc.numPages}`;toggle()}
+async function cropContent(doc,pageNum){
+ const pg=await doc.getPage(pageNum),vp=pg.getViewport({scale:2.5});
+ const canvas=document.createElement('canvas');canvas.width=Math.ceil(vp.width);canvas.height=Math.ceil(vp.height);
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+ await pg.render({canvasContext:ctx,viewport:vp,background:'white'}).promise;
+ const {data}=ctx.getImageData(0,0,canvas.width,canvas.height);let x0=canvas.width,y0=canvas.height,x1=-1,y1=-1;
+ // Scan every second pixel to find printed content; preserve a small safe border.
+ for(let y=0;y<canvas.height;y+=2)for(let x=0;x<canvas.width;x+=2){let k=(y*canvas.width+x)*4;if(data[k]<225||data[k+1]<225||data[k+2]<225){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+2);y1=Math.max(y1,y+2)}}
+ if(x1<0)throw Error('Halaman '+pageNum+' kosong atau kandungan tidak dapat dikesan.');
+ const pad=10;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(canvas.width,x1+pad);y1=Math.min(canvas.height,y1+pad);
+ const out=document.createElement('canvas');out.width=x1-x0;out.height=y1-y0;out.getContext('2d').drawImage(canvas,x0,y0,out.width,out.height,0,0,out.width,out.height);
+ return out.toDataURL('image/png');
+}
+$('generate').addEventListener('click',async()=>{
+ if(busy)return;const f=$('waybill').files[0];if(!f){setStatus('Sila pilih satu fail PDF dahulu.',true);return}
+ if(!window.PDFLib||!window.pdfjsLib){setStatus('Library PDF gagal dimuatkan. Semak internet.',true);return}
+ busy=true;$('generate').disabled=true;reset();
+ try{
+  const bytes=new Uint8Array(await f.arrayBuffer());const doc=await pdfjsLib.getDocument({data:bytes}).promise;
+  const n=doc.numPages;if(n<2||n%2)throw Error('PDF mesti mempunyai bilangan halaman genap. Dikesan: '+n);
+  const count=n/2,portrait=$('orientation').value==='portrait',W=mm(portrait?105:148),H=mm(portrait?148:105);
+  const margin=mm(2),gap=mm(2),maxW=W-2*margin,maxH=H-2*margin-gap;
+  const output=await PDFLib.PDFDocument.create();
+  for(let i=0;i<count;i++){
+   setStatus('Memproses pasangan '+(i+1)+' / '+count+'...');
+   const wi=2*i+1,pi=2*i+2;
+   const w=await output.embedPng(await cropContent(doc,wi));const p=await output.embedPng(await cropContent(doc,pi));
+   const page=output.addPage([W,H]);
+   if(portrait){
+    // Portrait: same printed width, stacked vertically, preserving aspect ratios.
+    const width=Math.min(maxW,maxH/(w.height/w.width+p.height/p.width));
+    const wh=width*w.height/w.width,ph=width*p.height/p.width;
+    const x=(W-width)/2,startY=(H-(wh+gap+ph))/2;
+    page.drawImage(p,{x,y:startY,width,height:ph});
+    page.drawImage(w,{x,y:startY+ph+gap,width,height:wh});
+   }else{
+    // Landscape: waybill left, packing slip right; equal column widths.
+    // Fit each independently into its column, without stretching or clipping.
+    const colW=(W-2*margin-gap)/2,availableH=H-2*margin;
+    const fit=(img)=>Math.min(colW/img.width,availableH/img.height);
+    const ws=fit(w),ps=fit(p),ww=w.width*ws,wh=w.height*ws,pw=p.width*ps,ph=p.height*ps;
+    const leftX=margin+(colW-ww)/2,rightX=margin+colW+gap+(colW-pw)/2;
+    page.drawImage(w,{x:leftX,y:(H-wh)/2,width:ww,height:wh});
+    page.drawImage(p,{x:rightX,y:(H-ph)/2,width:pw,height:ph});
+   }
+  }
+  resultBytes=await output.save();previewDoc=await pdfjsLib.getDocument({data:new Uint8Array(resultBytes.slice())}).promise;
+  pageIndex=1;await showPage();setStatus('Siap! '+count+' halaman A6. Susunan '+(portrait?'atas/bawah':'kiri/kanan')+' dengan auto fit.');
+ }catch(e){reset();setStatus('Ralat: '+(e?.message||String(e)),true)}finally{busy=false;$('generate').disabled=false;toggle()}
+});
+$('download').addEventListener('click',()=>{if(!resultBytes)return;const blob=new Blob([resultBytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='waybill-packing-list-A6.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)});$('prev').addEventListener('click',()=>{if(pageIndex>1){pageIndex--;showPage()}});$('next').addEventListener('click',()=>{if(previewDoc&&pageIndex<previewDoc.numPages){pageIndex++;showPage()}});
+})();
+</script></body></html>
